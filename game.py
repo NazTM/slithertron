@@ -1,11 +1,10 @@
 from OpenGL.GL import *
 from OpenGL.GLUT import *
 from OpenGL.GLU import *
-import math, random
+import math, random, time
 
 # Camera-related variables
 camera_pos = (0,500,500)
-
 fovY = 120  # Field of view
 GRID_LENGTH = 100  # Length of grid lines
 GRID_SIZE = 14
@@ -13,6 +12,17 @@ rand_var = 423
 game_over = False
 score = 0
 level = 0
+
+snake_body = [
+    [0, 0, 0],
+    [-GRID_LENGTH, 0, 0],
+    [-2*GRID_LENGTH, 0, 0]
+]
+
+snake_dir = [GRID_LENGTH, 0, 0]  # Moving along +X direction
+snake_speed = 10  # Frames per movement
+frame_counter = 0
+
 
 player_pos = [0, 0, 0]
 player_angle = 0
@@ -61,11 +71,27 @@ def draw_grid(GRID_SIZE):
     glBegin(GL_QUADS)
     for i in range(GRID_SIZE):
         for j in range(GRID_SIZE):
-            x, y = (i - GRID_SIZE//2) * GRID_LENGTH, (j - GRID_SIZE//2) * GRID_LENGTH
+            x = (i - GRID_SIZE // 2) * GRID_LENGTH
+            y = (j - GRID_SIZE // 2) * GRID_LENGTH
             glColor3f(*(1, 1, 1) if (i + j) % 2 == 0 else (0.7, 0.5, 0.95))
-            for vx, vy in [(0, 0), (1, 0), (1, 1), (0, 1)]:
-                glVertex3f(x + vx * GRID_LENGTH, y + vy * GRID_LENGTH, 0)
+            for dx, dy in [(0, 0), (1, 0), (1, 1), (0, 1)]:
+                glVertex3f(x + dx * GRID_LENGTH, y + dy * GRID_LENGTH, 0)
     glEnd()
+
+
+
+def draw_snake():
+    for i, segment in enumerate(snake_body):
+        x, y, z = segment
+        glPushMatrix()
+        glTranslatef(x, y, z + 5)
+        if i == 0:
+            glColor3f(0.0, 1.0, 0.0)  # Head = bright green
+        else:
+            glColor3f(0.2, 0.6, 0.2)  # Body = darker green
+        glutSolidCube(GRID_LENGTH * 0.8)
+        glPopMatrix()
+
 
 
 def draw_border_walls():
@@ -100,27 +126,42 @@ def translateRotate(tup1, tup2):
     glTranslatef(*tup1) 
     glRotatef(*tup2)
 
-def specialKeyListener(key, x, y):
-    """
-    Handles special key inputs (arrow keys) for adjusting the camera angle and height.
-    """
-    global camera_pos
-    x, y, z = camera_pos
-    # Move camera up (UP arrow key)
-    if key == GLUT_KEY_UP:
-        y += 1
-    # Move camera down (DOWN arrow key)
-    if key == GLUT_KEY_DOWN:
-        y -= 1
-    # moving camera left (LEFT arrow key)
-    if key == GLUT_KEY_LEFT:
-        x -= 1  # Small angle decrement for smooth movement
+def keyboardListener(key, x, y):
+    global snake_dir, game_over
+    if key == b'r' or key == b'R':
+        restart_game()
 
-    # moving camera right (RIGHT arrow key)
-    if key == GLUT_KEY_RIGHT:
-        x += 1  # Small angle increment for smooth movement
+    if key == b'd' and snake_dir != [-GRID_LENGTH, 0, 0]:
+        snake_dir = [GRID_LENGTH, 0, 0]  # → right (positive X)
+    elif key == b'a' and snake_dir != [GRID_LENGTH, 0, 0]:
+        snake_dir = [-GRID_LENGTH, 0, 0]  # ← left (negative X)
+    elif key == b'w' and snake_dir != [0, -GRID_LENGTH, 0]:
+        snake_dir = [0, GRID_LENGTH, 0]  # ↑ up (positive Y)
+    elif key == b's' and snake_dir != [0, GRID_LENGTH, 0]:
+        snake_dir = [0, -GRID_LENGTH, 0]  # ↓ down (negative Y)
 
-    camera_pos = (x, y, z)
+
+
+
+
+
+def move_snake():
+    global snake_body, snake_dir, game_over
+
+    head = snake_body[0]
+    new_head = [head[0] + snake_dir[0], head[1] + snake_dir[1], head[2] + snake_dir[2]]
+
+    # Boundary check
+    if (new_head[0] < min_bound or new_head[0] > max_bound or
+        new_head[1] < min_bound or new_head[1] > max_bound):
+        game_over = True
+        print("Game Over: Snake hit the wall.")
+        return
+
+    # Insert new head and remove tail
+    snake_body.insert(0, new_head)
+    snake_body.pop()
+
 
 def setupCamera():
     global lastx, lasty, lastz
@@ -141,18 +182,59 @@ def setupCamera():
         # Position the camera and set its orientation
         gluLookAt(x, y, z,  # Camera position
                 0, 0, 0,  # Look-at target
-                0, 0, 1)  # Up vector (z-axis)
+                0, 0, 1)  #Up vector flipped
+        
+last_move_time = time.time()
+move_interval = 0.2  # seconds between moves
 
 def idle():
-    """
-    Idle function that runs continuously:
-    - Triggers screen redraw for real-time updates.
-    """
-    # Ensure the screen updates with the latest changes
-    # cheat_mode()
-    # hit_enemy()
-    # env_interaction()
+    global last_move_time
+    if not game_over:
+        current_time = time.time()
+        if current_time - last_move_time >= move_interval:
+            last_move_time = current_time
+            move_snake()
     glutPostRedisplay()
+
+def restart_game():
+    global snake_body, snake_dir, score, game_over, last_move_time
+
+    snake_body = [
+        [0, 0, 0],
+        [-GRID_LENGTH, 0, 0],
+        [-2*GRID_LENGTH, 0, 0]
+    ]
+    snake_dir = [-GRID_LENGTH, 0, 0]
+    score = 0
+    game_over = False
+    last_move_time = time.time()
+
+def specialKeyListener(key, x, y):
+    global snake_dir
+
+    if key == GLUT_KEY_RIGHT and snake_dir != [-GRID_LENGTH, 0, 0]:
+        snake_dir = [GRID_LENGTH, 0, 0]  # → right (positive X)
+    elif key == GLUT_KEY_LEFT and snake_dir != [GRID_LENGTH, 0, 0]:
+        snake_dir = [-GRID_LENGTH, 0, 0]  # ← left (negative X)
+    elif key == GLUT_KEY_UP and snake_dir != [0, GRID_LENGTH, 0]:
+        snake_dir = [0, GRID_LENGTH, 0]  # ↑ up (positive Y)
+    elif key == GLUT_KEY_DOWN and snake_dir != [0, -GRID_LENGTH, 0]:
+        snake_dir = [0, -GRID_LENGTH, 0]  # ↓ down (negative Y)
+
+
+def keyboardListener(key, x, y):
+    global snake_dir, game_over
+    if key == b'r' or key == b'R':
+        restart_game()
+
+    if key == b'd' and snake_dir != [-GRID_LENGTH, 0, 0]:
+        snake_dir = [GRID_LENGTH, 0, 0]
+    elif key == b'a' and snake_dir != [GRID_LENGTH, 0, 0]:
+        snake_dir = [-GRID_LENGTH, 0, 0]
+    elif key == b'w' and snake_dir != [0, -GRID_LENGTH, 0]:
+        snake_dir = [0, GRID_LENGTH, 0]
+    elif key == b's' and snake_dir != [0, GRID_LENGTH, 0]:
+        snake_dir = [0, -GRID_LENGTH, 0]
 
 
 def showScreen():
@@ -176,6 +258,8 @@ def showScreen():
     
     draw_grid(GRID_SIZE)
     draw_border_walls()
+    draw_snake()
+
 
     # Draw text above everything else
     if not game_over:
@@ -199,7 +283,7 @@ def main():
     wind = glutCreateWindow(b"3D OpenGL Intro")  # Create the window
 
     glutDisplayFunc(showScreen)  # Register display function
-    #glutKeyboardFunc(keyboardListener)  # Register keyboard listener
+    glutKeyboardFunc(keyboardListener)  # Register keyboard listener
     glutSpecialFunc(specialKeyListener)
     #glutMouseFunc(mouseListener)
     glutIdleFunc(idle)  # Register the idle function to move the bullet automatically
