@@ -3,9 +3,9 @@ from OpenGL.GLUT import *
 from OpenGL.GLU import *
 import math
 
-camera_mode = 'third'  # Modes: 'third', 'first'
-snake = [(0, 0, 0)]  # List of segments, head is first
-snake_dir = (0, 0, 10)  # Movement direction
+camera_mode = 'third'
+snake = [(0, 0, 0)]
+snake_dir = (0, 0, 10)
 snake_length = 5
 frame_count = 0
 
@@ -70,10 +70,8 @@ def showScreen():
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
     glViewport(0, 0, 1000, 800)
     setupCamera()
-
     draw_environment()
     draw_snake()
-
     glutSwapBuffers()
 
 def main():
