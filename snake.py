@@ -2,13 +2,14 @@ from OpenGL.GL import *
 from OpenGL.GLUT import *
 from OpenGL.GLU import *
 
-snake_body = [(0, 0, 0)]
-snake_dir = (0, 0, 10)
-snake_max_length = 8
-
-fovY = 100
+camera_pos = (0, 500, 500)
+fovY = 120
 GRID_LENGTH = 600
-camera_mode = "third"
+rand_var = 423
+snake_body = [(0, 0, 0)]
+snake_direction = (1, 0, 0)
+block_size = 20
+has_eaten_block = False
 
 def draw_text(x, y, text, font=GLUT_BITMAP_HELVETICA_18):
     glColor3f(1, 1, 1)
@@ -26,17 +27,6 @@ def draw_text(x, y, text, font=GLUT_BITMAP_HELVETICA_18):
     glMatrixMode(GL_PROJECTION)
     glPopMatrix()
     glMatrixMode(GL_MODELVIEW)
-
-def draw_cube(x, y, z, size=20):
-    glPushMatrix()
-    glTranslatef(x, y, z)
-    glutSolidCube(size)
-    glPopMatrix()
-
-def draw_snake():
-    glColor3f(0, 1, 0)
-    for segment in snake_body:
-        draw_cube(*segment, size=20)
 
 def draw_shapes():
     glPushMatrix()
@@ -57,15 +47,50 @@ def draw_shapes():
     glPopMatrix()
 
 def keyboardListener(key, x, y):
-    global camera_mode
-    if key == b'c':
-        camera_mode = "first" if camera_mode == "third" else "third"
+    global snake_direction
+    if key == b'w':
+        snake_direction = (0, 1, 0)
+    if key == b's':
+        snake_direction = (0, -1, 0)
+    if key == b'a':
+        snake_direction = (-1, 0, 0)
+    if key == b'd':
+        snake_direction = (1, 0, 0)
 
 def specialKeyListener(key, x, y):
-    pass
+    global camera_pos
+    x, y, z = camera_pos
+    if key == GLUT_KEY_LEFT:
+        x -= 1
+    if key == GLUT_KEY_RIGHT:
+        x += 1
+    camera_pos = (x, y, z)
 
-def mouseListener(button, state, x, y):
-    pass
+def move_snake():
+    global snake_body, has_eaten_block
+    head_x, head_y, head_z = snake_body[0]
+    dir_x, dir_y, dir_z = snake_direction
+    new_head = (head_x + dir_x * block_size, head_y + dir_y * block_size, head_z + dir_z * block_size)
+    snake_body = [new_head] + snake_body
+    if not has_eaten_block:
+        snake_body = snake_body[:-1]
+    else:
+        has_eaten_block = False
+    return snake_body
+
+def check_collision():
+    head = snake_body[0]
+    if head in snake_body[1:]:
+        return True
+    return False
+
+def eat_block(block_position):
+    global has_eaten_block
+    head = snake_body[0]
+    if head == block_position:
+        has_eaten_block = True
+        return True
+    return False
 
 def setupCamera():
     glMatrixMode(GL_PROJECTION)
@@ -73,19 +98,10 @@ def setupCamera():
     gluPerspective(fovY, 1.25, 0.1, 1500)
     glMatrixMode(GL_MODELVIEW)
     glLoadIdentity()
-    head_x, head_y, head_z = snake_body[0]
-    if camera_mode == "third":
-        gluLookAt(head_x - 150, 200, head_z - 150, head_x, 0, head_z, 0, 1, 0)
-    else:
-        gluLookAt(head_x, head_y + 10, head_z, head_x + snake_dir[0], head_y, head_z + snake_dir[2], 0, 1, 0)
+    x, y, z = camera_pos
+    gluLookAt(x, y, z, 0, 0, 0, 0, 0, 1)
 
 def idle():
-    head = snake_body[0]
-    dx, dy, dz = snake_dir
-    new_head = (head[0] + dx, head[1] + dy, head[2] + dz)
-    snake_body.insert(0, new_head)
-    if len(snake_body) > snake_max_length:
-        snake_body.pop()
     glutPostRedisplay()
 
 def showScreen():
@@ -117,8 +133,8 @@ def showScreen():
     glVertex3f(0, 0, 0)
     glVertex3f(0, GRID_LENGTH, 0)
     glEnd()
-    draw_text(10, 770, f"Snake Length: {len(snake_body)} | View: {camera_mode}")
-    draw_snake()
+    draw_text(10, 770, f"A Random Fixed Position Text")
+    draw_text(10, 740, f"See how the position and variable change?: {rand_var}")
     draw_shapes()
     glutSwapBuffers()
 
@@ -127,12 +143,10 @@ def main():
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH)
     glutInitWindowSize(1000, 800)
     glutInitWindowPosition(0, 0)
-    glutCreateWindow(b"3D Snake with Camera Modes")
-    glEnable(GL_DEPTH_TEST)
+    wind = glutCreateWindow(b"3D OpenGL Intro")
     glutDisplayFunc(showScreen)
     glutKeyboardFunc(keyboardListener)
     glutSpecialFunc(specialKeyListener)
-    glutMouseFunc(mouseListener)
     glutIdleFunc(idle)
     glutMainLoop()
 
