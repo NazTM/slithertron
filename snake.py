@@ -8,6 +8,7 @@ WINDOW_HEIGHT = 800
 GRID_SIZE = 600
 CELL_SIZE = 37
 
+paused = False
 looking_back = False
 snake_dir = (1, 0)
 snake_speed = 1.5
@@ -18,6 +19,16 @@ snake_invisible = False
 invisible_timer = 0
 invisibility_powerup_pos = None
 invisibility_powerup_color = (1.0, 1.0, 1.0)
+
+bullets = []
+enemies = []
+num_enemies = 5
+projectiles = []
+enemy_speed = 1.0
+projectile_speed = 5.0
+shoot_timer = 0
+enemy_radius = 20
+
 
 food_pos = (100, 100)
 score = 0
@@ -35,6 +46,7 @@ powerup_pos = None
 shrink_timer = 0
 shrink_pos = None
 barriers = []
+player_pos = [0, 0, 0]
 
 def close_callback():
     """Callback function for window close event"""
@@ -138,6 +150,92 @@ def draw_obstacles():
             glutSolidCube(1)
             glPopMatrix()
 
+#enemy code start
+def draw_enemy(e):
+    glPushMatrix()
+    glTranslatef(*e['enemy_pos'])
+    glScalef(e["scale"], e["scale"], e["scale"]) 
+
+    def cpt(tup1, tup2):
+        glColor3f(*tup1)
+        glPushMatrix()
+        glTranslatef(*tup2)
+
+    #body
+    cpt((1, 0, 0), (0, 0, 40))
+    gluSphere(gluNewQuadric(), 40, 20, 20) 
+    glPopMatrix()
+
+    #head
+    cpt((0,0,0), (0, 0, 80))
+    gluSphere(gluNewQuadric(), 30, 20, 20)
+    glPopMatrix()
+
+    glPopMatrix()
+
+def env_interaction():
+    global game_over
+
+    for e in enemies:
+        # Move toward player
+        dx, dy = player_pos[0] - e['enemy_pos'][0], player_pos[1] - e['enemy_pos'][1]
+        dist = math.hypot(dx, dy)
+        if dist > 1:
+            e['enemy_pos'][0] += dx / dist * 0.02
+            e['enemy_pos'][1] += dy / dist * 0.02
+
+
+        # Pulse effect
+        e['scale'] += e['scale_direction']
+        if not 0.8 <= e['scale'] <= 1.2:
+            e['scale_direction'] *= -1
+
+    if game_over:
+        return
+
+    # Collision check
+    px, py, pz = player_pos
+    for e in enemies:
+        ex, ey, ez = e['enemy_pos']
+        if abs(px - ex) < 100 and abs(py - ey) < 100 and abs(pz - ez) < 100:
+                game_over = True
+                enemies.clear()
+                break
+
+def spawn_enemy():
+    x, y = 0, 0
+    while abs(x) <= 200 and abs(y) <= 200:  
+        x = random.randint(-600, 500)
+        y = random.randint(-600, 500)
+    return {
+        'enemy_pos': [x, y, 0],
+        'scale': 1.0,
+        'scale_direction': 0.005
+    }
+
+def hit_enemy():
+    global bullets, score, enemies
+
+    new_enemies = []
+    hit_bullets = set()
+
+    for e in enemies:
+        ex, ey, ez = e['enemy_pos']
+        for b in bullets:
+            bx, by, bz = b['bullet_pos']
+            if abs(bx - ex) < 30 and abs(by - ey) < 30 and abs(bz - ez) < 30:
+                score += 1
+                hit_bullets.add(id(b))
+                new_enemies.append(spawn_enemy())
+                break
+        else:
+            new_enemies.append(e)
+
+    bullets[:] = [b for b in bullets if id(b) not in hit_bullets]
+    enemies[:] = new_enemies
+
+#enemy code end
+
 def draw_walls():
     def wall(x, y, w, h, color):
         glColor3f(*color)
@@ -171,9 +269,13 @@ def setup_camera():
         gluLookAt(x, y, z, 0, 0, 0, 0, 0, 1)
 
 def update_snake():
-    global snake, food_pos, score, snake_grow, game_over, level
+    global snake, food_pos, score, snake_grow, game_over, level, paused
     global powerup_pos, shrink_pos, powerup_timer, shrink_timer
     global barriers, snake_speed, snake_invisible, invisible_timer, invisibility_powerup_pos
+
+    if paused:
+        return
+
 
     # Invisibility timer check BEFORE returns
     if snake_invisible and time.time() - invisible_timer > 10:
@@ -298,6 +400,9 @@ def display():
     setup_camera()
     draw_grid()
     draw_walls()
+    if level == 3:
+        for enemy in enemies:
+            draw_enemy(enemy)
     draw_obstacles()
     draw_food()
     draw_powerups()
@@ -307,7 +412,7 @@ def display():
     glutSwapBuffers()
 
 def keyboard(key, x, y):
-    global snake_dir, camera_mode
+    global snake_dir, camera_mode, paused
 
     if key == b'\x1b':  # ESC key
         close_callback()
@@ -319,6 +424,11 @@ def keyboard(key, x, y):
             camera_mode = 2
         return
 
+    # Toggle pause on 'P' press
+    if key == b'p' or key == b'P':
+        paused = not paused
+        return
+    
     # Turn controls for both modes
     if camera_mode == 2:  # First-person: use relative turning
         if key in b'a':  # Turn left
@@ -356,16 +466,34 @@ def keyboard(key, x, y):
         reset_game()
         camera_mode = None
 
-def mouse(button, state, x, y):
-    global looking_back
-    if camera_mode == 2 and button == GLUT_RIGHT_BUTTON and state == GLUT_DOWN:
-        looking_back = not looking_back
+def specialKeyListener(key, x, y):
+    """
+    Handles special key inputs (arrow keys) for adjusting the camera angle and height.
+    """
+    global camera_pos
+    x, y, z = camera_pos
+    # Move camera up (UP arrow key)
+    if key == GLUT_KEY_UP:
+        y += 1
+    # Move camera down (DOWN arrow key)
+    if key == GLUT_KEY_DOWN:
+        y -= 1
+    # moving camera left (LEFT arrow key)
+    if key == GLUT_KEY_LEFT:
+        x -= 1  # Small angle decrement for smooth movement
 
+    # moving camera right (RIGHT arrow key)
+    if key == GLUT_KEY_RIGHT:
+        x += 1  # Small angle increment for smooth movement
+
+    camera_pos = (x, y, z)
 
 def idle():
     update_snake()
+    if level == 3:
+        env_interaction()
+        hit_enemy()
     glutPostRedisplay()
-
 def main():
     glutInit(sys.argv)
     glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE | GLUT_DEPTH)
@@ -374,12 +502,12 @@ def main():
     
     # Set the close callback
     glutCloseFunc(close_callback)
-    glutMouseFunc(mouse)
 
     glEnable(GL_DEPTH_TEST)
     reset_game()
     glutDisplayFunc(display)
     glutKeyboardFunc(keyboard)
+    glutSpecialFunc(specialKeyListener)
     glutIdleFunc(idle)
     try:
         glutMainLoop()
