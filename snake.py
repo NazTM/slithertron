@@ -9,11 +9,13 @@ WINDOW_HEIGHT = 800
 GRID_SIZE = 600
 CELL_SIZE = 37
 
-snake = [(0, 0)]
+
 snake_dir = (1, 0)
-snake_speed = 1.5  
+snake_speed = 1.5
 snake_grow = 0
-snake_radius = 12
+snake_radius = 20
+snake = [(i * - snake_radius * 2, 0) for i in range(20)]
+
 
 food_pos = (100, 100)
 score = 0
@@ -38,10 +40,11 @@ def close_callback():
     sys.exit(0)
 
 def reset_game():
-    global snake, snake_dir, snake_grow, food_pos, score, game_over, level, powerup_pos, shrink_pos, barriers
-    snake = [(0, 0)]
+    global snake, snake_speed, snake_radius, snake_dir, snake_grow, food_pos, score, game_over, level, powerup_pos, shrink_pos, barriers
+    snake = [(i * -snake_radius * 2, 0) for i in range(20)]  # Minimum snake length
     snake_dir = (1, 0)
     snake_grow = 0
+    snake_speed = 1.5
     food_pos = (random.randint(-GRID_SIZE // 2, GRID_SIZE // 2), random.randint(-GRID_SIZE // 2, GRID_SIZE // 2))
     score = 0
     game_over = False
@@ -49,6 +52,7 @@ def reset_game():
     powerup_pos = None
     shrink_pos = None
     barriers = []
+
 
 def draw_text(x, y, text, font=GLUT_BITMAP_HELVETICA_18):
     glRasterPos2f(x, y)
@@ -87,13 +91,13 @@ def draw_food():
 def draw_powerups():
     global powerup_pos, shrink_pos
     if powerup_pos:
-        glColor3f(0, 0, 1)
+        glColor3f(0, 0, 1) #cyan
         glPushMatrix()
         glTranslatef(powerup_pos[0], powerup_pos[1], snake_radius)
         glutSolidSphere(snake_radius, 16, 16)
         glPopMatrix()
     if shrink_pos:
-        glColor3f(1, 0.5, 0)
+        glColor3f(1, 0.5, 0) 
         glPushMatrix()
         glTranslatef(shrink_pos[0], shrink_pos[1], snake_radius)
         glutSolidSphere(snake_radius, 16, 16)
@@ -221,7 +225,7 @@ def show_score():
     glColor3f(1, 1, 1)
     draw_text(10, WINDOW_HEIGHT - 20, f"Score: {score}  Level: {level}")
     if level == 1:
-        draw_text(10, WINDOW_HEIGHT - 40, f"Score 9 points to get to Level 2")
+        draw_text(10, WINDOW_HEIGHT - 40, f"Score 10 points to get to Level 2")
     if game_over:
         draw_text(400, 400, "Game Over! Press R to Restart")
 
@@ -246,6 +250,8 @@ def display():
         draw_text(300, 600, "S L I T H E R T R O N")
         draw_text(300, 400, "Press 1 for Third-Person Mode")
         draw_text(300, 370, "Press 2 for First-Person Mode")
+        draw_text(300, 240, "Instructions:")
+        draw_text(300, 200, "Snake eats powerups - cyan lengthen it, orange shrinks it")
         glutSwapBuffers()
         return
 
@@ -262,6 +268,7 @@ def display():
 
 def keyboard(key, x, y):
     global snake_dir, camera_mode
+
     if camera_mode is None:
         if key in [b'1', b'\x31']:
             camera_mode = 1
@@ -269,17 +276,40 @@ def keyboard(key, x, y):
             camera_mode = 2
         return
 
-    if key in b's' and snake_dir != (0, -1):
-        snake_dir = (0, 1)
-    elif key in b'w' and snake_dir != (0, 1):
-        snake_dir = (0, -1)
-    elif key in b'd' and snake_dir != (1, 0):
-        snake_dir = (-1, 0)
-    elif key in b'a' and snake_dir != (-1, 0):
-        snake_dir = (1, 0)
-    elif key in [b'r', b'R']:
+    # Turn controls for both modes
+    if camera_mode == 2:  # First-person: use relative turning
+        if key in b'a':  # Turn left
+            if snake_dir == (1, 0):
+                snake_dir = (0, 1)
+            elif snake_dir == (-1, 0):
+                snake_dir = (0, -1)
+            elif snake_dir == (0, 1):
+                snake_dir = (-1, 0)
+            elif snake_dir == (0, -1):
+                snake_dir = (1, 0)
+        elif key in b'd':  # Turn right
+            if snake_dir == (1, 0):
+                snake_dir = (0, -1)
+            elif snake_dir == (-1, 0):
+                snake_dir = (0, 1)
+            elif snake_dir == (0, 1):
+                snake_dir = (1, 0)
+            elif snake_dir == (0, -1):
+                snake_dir = (-1, 0)
+    else:  # Third-person: use direct control
+        if key in b's' and snake_dir != (0, -1):
+            snake_dir = (0, 1)
+        elif key in b'w' and snake_dir != (0, 1):
+            snake_dir = (0, -1)
+        elif key in b'd' and snake_dir != (-1, 0):
+            snake_dir = (1, 0)
+        elif key in b'a' and snake_dir != (1, 0):
+            snake_dir = (-1, 0)
+
+    if key in [b'r', b'R']:
         reset_game()
         camera_mode = None
+
 
 def idle():
     update_snake()
