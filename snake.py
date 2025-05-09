@@ -1,21 +1,23 @@
 from OpenGL.GL import *
 from OpenGL.GLUT import *
 from OpenGL.GLU import *
-import math, random, time
-import sys
+import math, random, time, sys, os
 
 WINDOW_WIDTH = 1000
 WINDOW_HEIGHT = 800
 GRID_SIZE = 600
 CELL_SIZE = 37
 
-
+looking_back = False
 snake_dir = (1, 0)
 snake_speed = 1.5
 snake_grow = 0
 snake_radius = 20
 snake = [(i * - snake_radius * 2, 0) for i in range(20)]
-
+snake_invisible = False
+invisible_timer = 0
+invisibility_powerup_pos = None
+invisibility_powerup_color = (1.0, 1.0, 1.0)
 
 food_pos = (100, 100)
 score = 0
@@ -37,7 +39,10 @@ barriers = []
 def close_callback():
     """Callback function for window close event"""
     print("Exiting game...")
-    sys.exit(0)
+    sys.exit(0)  # fallback if glutLeaveMainLoop doesn't work
+    print("Force exiting game...")
+    os._exit(0)  # Kills the process immediately, bypassing GLUT issues
+
 
 def reset_game():
     global snake, snake_speed, snake_radius, snake_dir, snake_grow, food_pos, score, game_over, level, powerup_pos, shrink_pos, barriers
@@ -74,12 +79,17 @@ def draw_grid():
     glEnd()
 
 def draw_snake():
-    glColor3f(0, 1, 0)
     for x, y in snake:
         glPushMatrix()
         glTranslatef(x, y, snake_radius)
+        if snake_invisible:
+            glColor4f(1, 1, 1, 0)  # Invisible (fully transparent)
+        else:
+            glColor3f(0, 1, 0)  # Normal snake color
         glutSolidSphere(snake_radius, 16, 16)
         glPopMatrix()
+
+    
 
 def draw_food():
     glColor3f(0, 1, 0 if score == 8 else 1)  # Green if transition food
@@ -89,7 +99,7 @@ def draw_food():
     glPopMatrix()
 
 def draw_powerups():
-    global powerup_pos, shrink_pos
+    global powerup_pos, shrink_pos, invisibility_powerup_pos, invisibility_powerup_color
     if powerup_pos:
         glColor3f(0, 0, 1) #cyan
         glPushMatrix()
@@ -100,6 +110,12 @@ def draw_powerups():
         glColor3f(1, 0.5, 0) 
         glPushMatrix()
         glTranslatef(shrink_pos[0], shrink_pos[1], snake_radius)
+        glutSolidSphere(snake_radius, 16, 16)
+        glPopMatrix()
+    if invisibility_powerup_pos:
+        glColor3f(*invisibility_powerup_color)  # Use random color
+        glPushMatrix()
+        glTranslatef(invisibility_powerup_pos[0], invisibility_powerup_pos[1], snake_radius)
         glutSolidSphere(snake_radius, 16, 16)
         glPopMatrix()
 
@@ -155,7 +171,14 @@ def setup_camera():
         gluLookAt(x, y, z, 0, 0, 0, 0, 0, 1)
 
 def update_snake():
-    global snake, food_pos, score, snake_grow, game_over, level, powerup_pos, shrink_pos, powerup_timer, shrink_timer, barriers, snake_speed
+    global snake, food_pos, score, snake_grow, game_over, level
+    global powerup_pos, shrink_pos, powerup_timer, shrink_timer
+    global barriers, snake_speed, snake_invisible, invisible_timer, invisibility_powerup_pos
+
+    # Invisibility timer check BEFORE returns
+    if snake_invisible and time.time() - invisible_timer > 10:
+        snake_invisible = False
+
     if game_over or camera_mode is None:
         return
 
@@ -172,7 +195,7 @@ def update_snake():
         game_over = True
         return
 
-    if level == 2:
+    if level == 2 and not snake_invisible:
         for bx, by in barriers:
             if abs(new_head[0] - bx) < snake_radius * 2 and abs(new_head[1] - by) < snake_radius * 2:
                 game_over = True
@@ -193,6 +216,7 @@ def update_snake():
         if level == 2:
             powerup_pos = (random.randint(-GRID_SIZE // 2, GRID_SIZE // 2), random.randint(-GRID_SIZE // 2, GRID_SIZE // 2))
             shrink_pos = (random.randint(-GRID_SIZE // 2, GRID_SIZE // 2), random.randint(-GRID_SIZE // 2, GRID_SIZE // 2))
+            invisibility_powerup_pos = (random.randint(-GRID_SIZE // 2, GRID_SIZE // 2), random.randint(-GRID_SIZE // 2, GRID_SIZE // 2))  # NEW
             powerup_timer = time.time()
             shrink_timer = time.time()
     elif powerup_pos and abs(new_head[0] - powerup_pos[0]) < snake_radius * 2 and abs(new_head[1] - powerup_pos[1]) < snake_radius * 2:
@@ -212,6 +236,17 @@ def update_snake():
     if powerup_pos and time.time() - powerup_timer > 6:
         powerup_pos = None
 
+    # Check invisibility power-up collection
+    if invisibility_powerup_pos and abs(new_head[0] - invisibility_powerup_pos[0]) < snake_radius * 2 and abs(new_head[1] - invisibility_powerup_pos[1]) < snake_radius * 2:
+        snake_invisible = True
+        invisible_timer = time.time()
+        invisibility_powerup_pos = None
+
+    if snake_invisible and time.time() - invisible_timer > 10:
+        snake_invisible = False
+
+
+
 def show_score():
     glMatrixMode(GL_PROJECTION)
     glPushMatrix()
@@ -225,9 +260,14 @@ def show_score():
     glColor3f(1, 1, 1)
     draw_text(10, WINDOW_HEIGHT - 20, f"Score: {score}  Level: {level}")
     if level == 1:
-        draw_text(10, WINDOW_HEIGHT - 40, f"Score 10 points to get to Level 2")
+        draw_text(10, WINDOW_HEIGHT - 40, f"Score 9 points to get to Level 2")
     if game_over:
         draw_text(400, 400, "Game Over! Press R to Restart")
+
+    if snake_invisible:
+        remaining = int(10 - (time.time() - invisible_timer))
+        draw_text(10, WINDOW_HEIGHT - 60, f"Invisibility: {remaining}s left")
+
 
     glEnable(GL_DEPTH_TEST)
     glPopMatrix()
@@ -269,6 +309,9 @@ def display():
 def keyboard(key, x, y):
     global snake_dir, camera_mode
 
+    if key == b'\x1b':  # ESC key
+        close_callback()
+        return
     if camera_mode is None:
         if key in [b'1', b'\x31']:
             camera_mode = 1
@@ -301,14 +344,22 @@ def keyboard(key, x, y):
             snake_dir = (0, 1)
         elif key in b'w' and snake_dir != (0, 1):
             snake_dir = (0, -1)
-        elif key in b'd' and snake_dir != (-1, 0):
-            snake_dir = (1, 0)
-        elif key in b'a' and snake_dir != (1, 0):
+        elif key in b'd' and snake_dir != (1, 0):
             snake_dir = (-1, 0)
+        elif key in b'a' and snake_dir != (-1, 0):
+            snake_dir = (1, 0)
+        elif key in [b'r', b'R']:
+            reset_game()
+            camera_mode = None
 
     if key in [b'r', b'R']:
         reset_game()
         camera_mode = None
+
+def mouse(button, state, x, y):
+    global looking_back
+    if camera_mode == 2 and button == GLUT_RIGHT_BUTTON and state == GLUT_DOWN:
+        looking_back = not looking_back
 
 
 def idle():
@@ -323,13 +374,17 @@ def main():
     
     # Set the close callback
     glutCloseFunc(close_callback)
-    
+    glutMouseFunc(mouse)
+
     glEnable(GL_DEPTH_TEST)
     reset_game()
     glutDisplayFunc(display)
     glutKeyboardFunc(keyboard)
     glutIdleFunc(idle)
-    glutMainLoop()
+    try:
+        glutMainLoop()
+    except SystemExit:
+        os._exit(0)
 
 
 if __name__ == "__main__":
