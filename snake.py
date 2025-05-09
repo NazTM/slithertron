@@ -363,8 +363,12 @@ def show_score():
     draw_text(10, WINDOW_HEIGHT - 20, f"Score: {score}  Level: {level}")
     if level == 1:
         draw_text(10, WINDOW_HEIGHT - 40, f"Score 9 points to get to Level 2")
+    if level == 2:
+        draw_text(10, WINDOW_HEIGHT - 40, f"Score 16 points to get to Level 3")
     if game_over:
         draw_text(400, 400, "Game Over! Press R to Restart")
+    if paused:
+        draw_text(10, WINDOW_HEIGHT - 60, f"Paused")
 
     if snake_invisible:
         remaining = int(10 - (time.time() - invisible_timer))
