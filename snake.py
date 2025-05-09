@@ -2,6 +2,7 @@ from OpenGL.GL import *
 from OpenGL.GLUT import *
 from OpenGL.GLU import *
 import math, random, time
+import sys
 
 WINDOW_WIDTH = 1000
 WINDOW_HEIGHT = 800
@@ -30,6 +31,11 @@ powerup_pos = None
 shrink_timer = 0
 shrink_pos = None
 barriers = []
+
+def close_callback():
+    """Callback function for window close event"""
+    print("Exiting game...")
+    sys.exit(0)
 
 def reset_game():
     global snake, snake_dir, snake_grow, food_pos, score, game_over, level, powerup_pos, shrink_pos, barriers
@@ -214,6 +220,8 @@ def show_score():
 
     glColor3f(1, 1, 1)
     draw_text(10, WINDOW_HEIGHT - 20, f"Score: {score}  Level: {level}")
+    if level == 1:
+        draw_text(10, WINDOW_HEIGHT - 40, f"Score 9 points to get to Level 2")
     if game_over:
         draw_text(400, 400, "Game Over! Press R to Restart")
 
@@ -235,6 +243,7 @@ def display():
         glMatrixMode(GL_MODELVIEW)
         glLoadIdentity()
         glColor3f(1, 1, 1)
+        draw_text(300, 600, "S L I T H E R T R O N")
         draw_text(300, 400, "Press 1 for Third-Person Mode")
         draw_text(300, 370, "Press 2 for First-Person Mode")
         glutSwapBuffers()
@@ -277,16 +286,21 @@ def idle():
     glutPostRedisplay()
 
 def main():
-    glutInit()
+    glutInit(sys.argv)
     glutInitDisplayMode(GLUT_RGB | GLUT_DOUBLE | GLUT_DEPTH)
     glutInitWindowSize(WINDOW_WIDTH, WINDOW_HEIGHT)
     glutCreateWindow(b"3D Snake Game")
+    
+    # Set the close callback
+    glutCloseFunc(close_callback)
+    
     glEnable(GL_DEPTH_TEST)
     reset_game()
     glutDisplayFunc(display)
     glutKeyboardFunc(keyboard)
     glutIdleFunc(idle)
     glutMainLoop()
+
 
 if __name__ == "__main__":
     main()

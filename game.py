@@ -73,7 +73,7 @@ def draw_grid(GRID_SIZE):
         for j in range(GRID_SIZE):
             x = (i - GRID_SIZE // 2) * GRID_LENGTH
             y = (j - GRID_SIZE // 2) * GRID_LENGTH
-            glColor3f(*(1, 1, 1) if (i + j) % 2 == 0 else (0.7, 0.5, 0.95))
+            glColor3f(*(.31, .32, .34) if (i + j) % 2 == 0 else (.57,.61,.71))
             for dx, dy in [(0, 0), (1, 0), (1, 1), (0, 1)]:
                 glVertex3f(x + dx * GRID_LENGTH, y + dy * GRID_LENGTH, 0)
     glEnd()
